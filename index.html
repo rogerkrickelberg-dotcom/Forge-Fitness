@@ -10,6 +10,7 @@
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0A0A0A" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Forge" />
 <link rel="apple-touch-icon" href="icon-192.png" />
@@ -45,15 +46,46 @@
 <!-- Core runtime: React + ReactDOM (UMD, pinned versions) -->
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<!-- Recharts UMD build requires prop-types as a global — must load before Recharts -->
+<script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
 <!-- Charting -->
 <script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
 <!-- In-browser JSX transform (no build step needed) -->
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- Local, dependency-free icon set (see icons.js) -->
-<script type="text/babel" data-presets="react" data-plugins="transform-react-jsx" data-type="module" data-preset-react-options='{"runtime":"classic"}' src="icons.js"></script>
-<!-- The app itself -->
-<script type="text/babel" data-presets="react" data-preset-react-options='{"runtime":"classic"}' src="app.js"></script>
+<script>
+  // @babel/standalone's declarative data-presets/data-plugins script-tag attributes have no
+  // documented way to pass preset OPTIONS (e.g. forcing the classic JSX runtime). We need the
+  // classic runtime because these files are loaded as plain (non-module) scripts, and Babel's
+  // automatic runtime injects an ES `import` statement that plain scripts can't execute.
+  // So: fetch the source manually and transform it via the JS API, where options actually work.
+  async function loadBabelScript(path) {
+    const res = await fetch(path);
+    const source = await res.text();
+    const { code } = Babel.transform(source, {
+      presets: [["react", { runtime: "classic" }]],
+      filename: path,
+    });
+    const script = document.createElement("script");
+    script.textContent = code;
+    document.body.appendChild(script);
+  }
+
+  (async () => {
+    try {
+      await loadBabelScript("icons.js");
+      await loadBabelScript("app.js");
+    } catch (err) {
+      console.error("Failed to load app scripts:", err);
+      const fallback = document.getElementById("load-fallback");
+      if (fallback) {
+        fallback.innerHTML =
+          '<div style="color:#ffb4ab;font-family:Inter,sans-serif;text-align:center;padding:0 20px;">' +
+          "Something went wrong loading the app. Check the browser console for details.</div>";
+      }
+    }
+  })();
+</script>
 
 <script>
   // Register service worker for offline support + installability
