@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+<title>Forge — Training Log</title>
+<meta name="description" content="Personal cardio and strength training log" />
+
+<!-- PWA metadata -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0A0A0A" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Forge" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" href="icon-192.png" />
+
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0A0A0A; overscroll-behavior-y: none; }
+  body { -webkit-tap-highlight-color: transparent; }
+  input, select, textarea, button { font-family: inherit; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #ff5f1f; border-radius: 4px; }
+  #root { min-height: 100vh; }
+  #load-fallback {
+    position: fixed; inset: 0; background: #0A0A0A; color: #e5e2e1; display: flex;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    font-family: 'Inter', sans-serif; font-size: 14px; z-index: 9999;
+  }
+</style>
+</head>
+<body>
+
+<div id="root">
+  <div id="load-fallback">
+    <div style="font-family: 'Archivo Narrow', sans-serif; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; text-transform: uppercase;">FORGE</div>
+    <div style="opacity: 0.6;">Loading…</div>
+  </div>
+</div>
+
+<!-- Core runtime: React + ReactDOM (UMD, pinned versions) -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<!-- Charting -->
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<!-- In-browser JSX transform (no build step needed) -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Local, dependency-free icon set (see icons.js) -->
+<script type="text/babel" data-presets="react" data-plugins="transform-react-jsx" data-type="module" data-preset-react-options='{"runtime":"classic"}' src="icons.js"></script>
+<!-- The app itself -->
+<script type="text/babel" data-presets="react" data-preset-react-options='{"runtime":"classic"}' src="app.js"></script>
+
+<script>
+  // Register service worker for offline support + installability
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW registration failed', err));
+    });
+  }
+</script>
+
+</body>
+</html>
