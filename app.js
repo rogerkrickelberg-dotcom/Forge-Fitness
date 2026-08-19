@@ -59,6 +59,67 @@ async function saveAll(key, value) {
   catch (e) { console.error("localStorage save failed (quota exceeded?)", e); }
 }
 
+// ---------- duration mm:ss <-> decimal minutes ----------
+// Storage/pace math keeps using decimal minutes everywhere (unchanged); only the
+// on-screen field displays and edits it as mm:ss for easier phone-keyboard entry.
+function decimalMinutesToMMSS(mins) {
+  if (mins === "" || mins == null || isNaN(mins)) return "";
+  const total = Math.round(parseFloat(mins) * 60); // total seconds
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+function mmssToDecimalMinutes(text) {
+  if (!text) return "";
+  const match = text.trim().match(/^(\d{1,4}):([0-5]?\d)$/);
+  if (match) {
+    const m = parseInt(match[1], 10);
+    const s = parseInt(match[2], 10);
+    return Math.round(((m * 60 + s) / 60) * 10) / 10;
+  }
+  // Fall back to a bare number of minutes (so typing "23" alone still works)
+  const bare = parseFloat(text);
+  return isNaN(bare) ? "" : bare;
+}
+// Duration field: shows/edits mm:ss, keeps the parent's state in decimal minutes.
+function DurationInput({ value, onChange, placeholder, style }) {
+  const [text, setText] = useState(decimalMinutesToMMSS(value));
+  useEffect(() => { setText(decimalMinutesToMMSS(value)); }, [value]);
+
+  const handleChange = (e) => {
+    const v = e.target.value.replace(/[^0-9:]/g, "");
+    setText(v);
+    // Only push a value up to the parent while typing if it's already mm:ss-shaped.
+    // A bare digit run (e.g. "2318" typed before the colon appears) must NOT be
+    // interpreted as "2318 minutes" — that reading only makes sense once the user
+    // is done typing and we auto-format on blur.
+    if (v === "" || v.includes(":")) {
+      onChange(mmssToDecimalMinutes(v));
+    }
+  };
+
+  const handleBlur = () => {
+    if (text && !text.includes(":")) {
+      const padded = text.length <= 2 ? text : text.slice(0, -2) + ":" + text.slice(-2);
+      const formatted = text.length <= 2 ? `${text}:00` : padded;
+      setText(formatted);
+      onChange(mmssToDecimalMinutes(formatted));
+    }
+  };
+
+  return (
+    <TextInput
+      type="text"
+      inputMode="numeric"
+      value={text}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      placeholder={placeholder || "0:00"}
+      style={style}
+    />
+  );
+}
+
 // ---------- shared atoms ----------
 function Header({ title, onBack }) {
   return (
@@ -78,23 +139,24 @@ function Header({ title, onBack }) {
   );
 }
 
-function Label({ children }) {
-  return <p style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: "0.1em", fontWeight: 500, color: ON_SURFACE_VARIANT, margin: "0 0 4px", textTransform: "uppercase" }}>{children}</p>;
+function Label({ children, style }) {
+  return <p style={{ fontFamily: FONT_MONO, fontSize: 11, letterSpacing: "0.1em", fontWeight: 500, color: ON_SURFACE_VARIANT, margin: "0 0 4px", textTransform: "uppercase", ...style }}>{children}</p>;
 }
 
 function StatTile({ icon: Icon, iconColor, label, value, unit, wide, sparkline }) {
   return (
     <div style={{
       background: "rgba(32,31,31,0.6)", backdropFilter: "blur(12px)", borderRadius: 8,
-      padding: 16, border: "1px solid rgba(255,255,255,0.05)", gridColumn: wide ? "span 2" : "span 1",
+      padding: "12px 10px", border: "1px solid rgba(255,255,255,0.05)", gridColumn: wide ? "span 2" : "span 1",
+      minWidth: 0, overflow: "hidden",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        {Icon && <Icon size={18} color={iconColor || PRIMARY_CONTAINER} fill={iconColor === ERROR ? ERROR : "none"} />}
-        <Label>{label}</Label>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }}>
+        {Icon && <Icon size={15} color={iconColor || PRIMARY_CONTAINER} fill={iconColor === ERROR ? ERROR : "none"} style={{ flexShrink: 0 }} />}
+        <Label style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</Label>
       </div>
-      <div style={{ display: "flex", alignItems: "baseline" }}>
-        <span style={{ fontFamily: FONT_BODY, fontSize: 34, fontWeight: 800, letterSpacing: "-0.03em", color: ON_SURFACE, lineHeight: 1 }}>{value}</span>
-        {unit && <span style={{ fontSize: 13, fontWeight: 500, color: ON_SURFACE_VARIANT, marginLeft: 4 }}>{unit}</span>}
+      <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", minWidth: 0 }}>
+        <span style={{ fontFamily: FONT_BODY, fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: ON_SURFACE, lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{value}</span>
+        {unit && <span style={{ fontSize: 11.5, fontWeight: 500, color: ON_SURFACE_VARIANT, marginLeft: 3, flexShrink: 0 }}>{unit}</span>}
       </div>
       {sparkline && (
         <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 32, marginTop: 8, opacity: 0.5 }}>
@@ -312,7 +374,7 @@ function CardioForm({ onSave, onCancel, initial }) {
           </Select>
         </Field>
         <Field label="Distance (km)"><TextInput type="number" step="0.01" value={distance} onChange={(e) => setDistance(e.target.value)} placeholder="10.2" /></Field>
-        <Field label="Duration (min)"><TextInput type="number" step="0.1" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="52" /></Field>
+        <Field label="Duration (mm:ss)"><DurationInput value={duration} onChange={setDuration} placeholder="52:00" /></Field>
         <Field label="Avg heart rate"><TextInput type="number" value={avgHR} onChange={(e) => setAvgHR(e.target.value)} placeholder="162" /></Field>
         <Field label="Calories"><TextInput type="number" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="840" /></Field>
       </div>
@@ -388,7 +450,7 @@ function CardioSessionCard({ s, onDelete, weeklyTotal }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
           <StatTile icon={Gauge} iconColor={PRIMARY_CONTAINER} label="Avg pace" value={s.avgPace || "—"} unit="/km" />
           <StatTile icon={Flame} iconColor={PRIMARY_CONTAINER} label="Calories" value={s.calories || "—"} />
           <StatTile icon={Heart} iconColor={ERROR} label="Avg HR" value={s.avgHR || "—"} unit="bpm" />
@@ -465,7 +527,7 @@ function StrengthForm({ onSave, onCancel, initial }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
         <Field label="Date"><TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-        <Field label="Time (min)"><TextInput type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="45" /></Field>
+        <Field label="Time (mm:ss)"><DurationInput value={duration} onChange={setDuration} placeholder="45:00" /></Field>
         <Field label="Avg HR"><TextInput type="number" value={avgHR} onChange={(e) => setAvgHR(e.target.value)} placeholder="128" /></Field>
         <Field label="Calories"><TextInput type="number" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="380" /></Field>
       </div>
@@ -516,7 +578,7 @@ function StrengthSessionCard({ s, onDelete }) {
           <button onClick={() => onDelete(s.id)} style={{ background: "none", border: "none", color: OUTLINE, cursor: "pointer" }}><Trash2 size={14} /></button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
           <StatTile label="Volume" value={Math.round(totalVolume).toLocaleString()} unit="kg" iconColor={PRIMARY_CONTAINER} icon={Dumbbell} />
           <StatTile label="Time" value={s.duration || "—"} unit="min" iconColor={PRIMARY_CONTAINER} icon={Flame} />
           <StatTile label="Avg HR" value={s.avgHR || "—"} unit="bpm" icon={Heart} iconColor={ERROR} />
@@ -568,6 +630,27 @@ function ProgressTab({ cardio, strength, bodyLogs }) {
 
   const weightTrend = useMemo(() => bodyLogs.map((b) => ({ date: fmtDate(b.date), rawDate: b.date, weight: b.weight })).sort((a, b) => a.rawDate.localeCompare(b.rawDate)), [bodyLogs]);
 
+  // Avg HR trend, split by activity type across both cardio and strength sessions.
+  const HR_TYPE_LABELS = {
+    running: "Running", bike: "Stationary bike", elliptical: "Elliptical",
+    weights: "Weights", hiit: "HIIT", kettlebells: "Kettlebells",
+  };
+  const [hrTypeFilter, setHrTypeFilter] = useState("running");
+  const hrTypesPresent = useMemo(() => {
+    const types = new Set();
+    cardio.forEach((c) => { if (c.avgHR) types.add(c.type); });
+    strength.forEach((s) => { if (s.avgHR) types.add(s.type); });
+    return Array.from(types);
+  }, [cardio, strength]);
+  useEffect(() => { if (hrTypesPresent.length && !hrTypesPresent.includes(hrTypeFilter)) setHrTypeFilter(hrTypesPresent[0]); }, [hrTypesPresent]);
+
+  const hrTrend = useMemo(() => {
+    const all = [...cardio, ...strength];
+    return all.filter((s) => s.type === hrTypeFilter && s.avgHR)
+      .map((s) => ({ date: fmtDate(s.date), rawDate: s.date, avgHR: s.avgHR }))
+      .sort((a, b) => a.rawDate.localeCompare(b.rawDate));
+  }, [cardio, strength, hrTypeFilter]);
+
   const paceTickFormatter = (v) => { const m = Math.floor(v / 60), s = Math.round(v % 60); return `${m}:${s.toString().padStart(2, "0")}`; };
   const gridColor = `${OUTLINE_VARIANT}44`;
 
@@ -605,13 +688,37 @@ function ProgressTab({ cardio, strength, bodyLogs }) {
               <LineChart data={cardioTrend}>
                 <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tick={{ fill: ON_SURFACE_VARIANT, fontSize: 11, fontFamily: FONT_MONO }} axisLine={{ stroke: gridColor }} tickLine={false} />
-                <YAxis reversed tick={{ fill: ON_SURFACE_VARIANT, fontSize: 11, fontFamily: FONT_MONO }} axisLine={false} tickLine={false} width={40} tickFormatter={paceTickFormatter} />
+                <YAxis tick={{ fill: ON_SURFACE_VARIANT, fontSize: 11, fontFamily: FONT_MONO }} axisLine={false} tickLine={false} width={40} tickFormatter={paceTickFormatter} />
                 <Tooltip contentStyle={{ background: SURFACE_CONTAINER_HIGH, border: `1px solid ${OUTLINE_VARIANT}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: ON_SURFACE }} formatter={(v) => paceTickFormatter(v)} />
                 <Line type="monotone" dataKey="paceSeconds" name="Avg pace" stroke={TERTIARY} strokeWidth={2} dot={{ r: 3, fill: TERTIARY }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : <div style={{ color: OUTLINE, fontSize: 12.5, padding: "20px 0", textAlign: "center", fontFamily: FONT_BODY }}>Log a couple more runs with pace data to see a trend.</div>}
+      </Card>
+
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Heart size={15} color={ERROR} /><span style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16, textTransform: "uppercase" }}>Avg HR trend</span></div>
+          {hrTypesPresent.length > 0 && (
+            <Select value={hrTypeFilter} onChange={(e) => setHrTypeFilter(e.target.value)} style={{ width: 150, fontSize: 12, padding: "5px 8px" }}>
+              {hrTypesPresent.map((t) => <option key={t} value={t}>{HR_TYPE_LABELS[t] || t}</option>)}
+            </Select>
+          )}
+        </div>
+        {hrTrend.length > 1 ? (
+          <div style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={hrTrend}>
+                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: ON_SURFACE_VARIANT, fontSize: 11, fontFamily: FONT_MONO }} axisLine={{ stroke: gridColor }} tickLine={false} />
+                <YAxis tick={{ fill: ON_SURFACE_VARIANT, fontSize: 11, fontFamily: FONT_MONO }} axisLine={false} tickLine={false} width={36} />
+                <Tooltip contentStyle={{ background: SURFACE_CONTAINER_HIGH, border: `1px solid ${OUTLINE_VARIANT}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: ON_SURFACE }} />
+                <Line type="monotone" dataKey="avgHR" name="Avg HR (bpm)" stroke={ERROR} strokeWidth={2} dot={{ r: 3, fill: ERROR }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : <div style={{ color: OUTLINE, fontSize: 12.5, padding: "20px 0", textAlign: "center", fontFamily: FONT_BODY }}>Log a couple more sessions with heart rate data to see a trend.</div>}
       </Card>
 
       <Card>
@@ -744,7 +851,7 @@ function Dashboard({ cardio, strength, bodyLogs, onGo, onImport }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
         <StatTile icon={Activity} label="Sessions / week" value={weekSessions.length} iconColor={PRIMARY_CONTAINER} />
         <StatTile icon={Footprints} label="Weekly distance" value={weekDistance.toFixed(1)} unit="km" iconColor={TERTIARY_CONTAINER} />
         <StatTile icon={Scale} label="Latest weight" value={latestWeight ? latestWeight.weight : "—"} unit={latestWeight ? "kg" : ""} iconColor={SECONDARY_CONTAINER} wide />
