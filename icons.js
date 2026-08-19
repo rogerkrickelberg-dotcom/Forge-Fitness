@@ -1,5 +1,6 @@
 // Minimal self-contained icon set (stroke-style, Lucide-compatible visual language).
 // Avoids depending on an external lucide-react CDN build inside a PWA that should work offline.
+(function () {
 const { createElement: h } = React;
 
 function makeIcon(paths, viewBox = "0 0 24 24") {
@@ -99,3 +100,5 @@ const ArrowLeft = ({ size = 20, color = "currentColor", style, ...rest }) =>
     h("line", { x1: "19", y1: "12", x2: "5", y2: "12" }), h("polyline", { points: "12 19 5 12 12 5" }));
 
 window.LucideReact = { Activity, Dumbbell, Zap, Bike, Footprints, TrendingUp, Camera, Plus, Trash2, X, Save, Scale, Heart, Flame, Gauge, ArrowLeft };
+
+})();
